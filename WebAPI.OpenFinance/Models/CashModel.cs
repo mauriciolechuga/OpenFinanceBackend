@@ -25,11 +25,6 @@ namespace WebAPI.OpenFinance.Models
         [Column("cash_description")]
         public string cashDescription { get; set; }
 
-
-        //I need to create an automatic date time for the last updated column
-        //Probably need to use OnModelCreating in the context class
-        //[Required]
-        //[Column("last_updated")]
-        //public DateTime lastUpdated { get; set; }
+        // TODO: add a last_updated column with a DB-generated default (configure in OnModelCreating).
     }
 }

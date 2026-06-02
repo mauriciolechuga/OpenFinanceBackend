@@ -1,64 +1,44 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using WebAPI.OpenFinance.Data;
 using WebAPI.OpenFinance.Models;
 
 namespace WebAPI.OpenFinance.Helpers
 {
-    //Manage all the methods used to client portfolio details
+    // Queries and calculations for a client's portfolio.
     public static class ClientHelper
     {
-        //Get all the connections for the clientID
+        // All connection IDs that belong to the given client.
         public static async Task<List<int>> GetClientConnectionsByClientID(OpenFinanceContext context, int clientID)
         {
-            var clientConnections = await context.Connections
+            return await context.Connections
                 .Where(c => c.clientID == clientID)
                 .Select(c => c.connectionID)
                 .ToListAsync();
-            return clientConnections;
         }
 
-        //Check if the client exists
         public static async Task<bool> CheckClientExists(OpenFinanceContext context, int clientID)
         {
-            //Using AnyAsync instead of an if statement
             return await context.Clients.AnyAsync(c => c.clientID == clientID);
         }
 
-        //Check if the client has any connections
         public static async Task<bool> CheckClientConnections(OpenFinanceContext context, int clientID)
         {
-            //Using AnyAsync instead of an if statement
             return await context.Connections.AnyAsync(c => c.clientID == clientID);
         }
 
-        //Calculate the percentage for each product
+        // Sets PortfolioPercentage on each product as its share of the portfolio total, rounded to 2 decimals.
         public static void CalculatePercentageForEachProduct(List<ProductDetails> productDetails)
         {
-            //Get the totalAmount fo all the products
-            //decimal totalAmount = 0;
-            //foreach (var product in productDetails)
-            //{
-            //    totalAmount += product.ProdTotal;
-            //}
             decimal totalAmount = CalculateTotalAmount(productDetails);
 
-            //Calculate the portfolio percentage for each product
             foreach (var product in productDetails)
             {
-                if (product.ProdTotal > 0)
-                {
-                    //product.PortfolioPercentage = (product.ProdTotal / totalAmount) * 100;
-                    //Round to 2 decimal
-                    product.PortfolioPercentage = Math.Round((product.ProdTotal / totalAmount) * 100, 2);
-                }
-                else
-                {
-                    product.PortfolioPercentage = 0;
-                }
+                product.PortfolioPercentage = product.ProdTotal > 0
+                    ? Math.Round((product.ProdTotal / totalAmount) * 100, 2)
+                    : 0;
             }
         }
 
-        //Calculate the total amount for all products
         public static decimal CalculateTotalAmount(List<ProductDetails> productDetails)
         {
             decimal totalAmount = 0;
@@ -69,7 +49,7 @@ namespace WebAPI.OpenFinance.Helpers
             return totalAmount;
         }
 
-        //Get the number of products
+        // Counts only products the client actually holds (total > 0).
         public static int GetNumProducts(List<ProductDetails> productDetails)
         {
             int numProducts = 0;
@@ -83,47 +63,42 @@ namespace WebAPI.OpenFinance.Helpers
             return numProducts;
         }
 
-        //Get the total amount for Cash
+        // Total cash across all of the client's connections.
         public static async Task<decimal> GetClientCashTotalAmount(OpenFinanceContext context, int clientID)
         {
             var clientConnections = await GetClientConnectionsByClientID(context, clientID);
 
-            var cashTotal = await context.CashInfo
+            return await context.CashInfo
                 .Where(c => clientConnections.Contains(c.connectionId))
                 .SumAsync(c => c.amount);
-
-            return cashTotal;
         }
 
-        //Get the total amount for Stock 
+        // Total stock value: sum of quantity * last day price over the client's holdings.
         public static async Task<decimal> GetClienStockTotalAmount(OpenFinanceContext context, int clientID)
         {
             var clientConnections = await GetClientConnectionsByClientID(context, clientID);
 
-            var stockTotal = await context.StockInfo
-                                .Where(si => clientConnections.Contains(si.connectionId))
-                                .Join(context.Stock,
-                                    si => si.stockId,
-                                    s => s.stockId,
-                                    (si, s) => si.quantity * s.lastDayPrice)
-                                .SumAsync();
-
-            return stockTotal;
+            return await context.StockInfo
+                .Where(si => clientConnections.Contains(si.connectionId))
+                .Join(context.Stock,
+                    si => si.stockId,
+                    s => s.stockId,
+                    (si, s) => si.quantity * s.lastDayPrice)
+                .SumAsync();
         }
 
-        //Get the total amount for Mutual Fund
+        // Total mutual fund value: sum of shares held * fund NAV over the client's holdings.
         public static async Task<decimal> GetClientMutualFundTotalAmount(OpenFinanceContext context, int clientID)
         {
             var clientConnections = await GetClientConnectionsByClientID(context, clientID);
-            var mutualFundTotal = await context.MutualFundInfo
-                                    .Where(mf => clientConnections.Contains(mf.ConnectionID))
-                                    .Join(context.MutualFund,
-                                        mf => mf.MFID,
-                                        m => m.MFID,
-                                        (mf, m) => mf.QuantityShares * m.MFNAV)
-                                    .SumAsync();
-            return mutualFundTotal;
-        }
 
+            return await context.MutualFundInfo
+                .Where(mf => clientConnections.Contains(mf.ConnectionID))
+                .Join(context.MutualFund,
+                    mf => mf.MFID,
+                    m => m.MFID,
+                    (mf, m) => mf.QuantityShares * m.MFNAV)
+                .SumAsync();
+        }
     }
 }

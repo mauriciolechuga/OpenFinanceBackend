@@ -1,9 +1,5 @@
-﻿using WebAPI.OpenFinance.Models;
 using WebAPI.OpenFinance.Data;
-using Microsoft.EntityFrameworkCore;
 using WebAPI.OpenFinance.Helpers;
-using Microsoft.AspNetCore.SignalR;
-using System.Net.Http.Headers;
 
 namespace WebAPI.OpenFinance.Routes
 {
@@ -13,55 +9,34 @@ namespace WebAPI.OpenFinance.Routes
         {
             var route = app.MapGroup("authentication");
 
-            //POST /login
-            //Will receive a JSON with the email and password
-            //Will return a JSON with the clientID and Full Name
+            // POST /authentication/login
+            // Accepts an email and password; returns the clientID and name on success.
             route.MapPost("/login", async (OpenFinanceContext context, Login login) =>
             {
-
-                //Receive the JSON with email and password
-                //Get the email and password from the JSON
                 var email = login.Email;
                 var password = login.Password;
 
-                //Get the client_id with the email
-                //var client = await context.Clients
-                //    .Where(c => c.clientEmail == email)
-                //    .FirstOrDefaultAsync();
-                var client = await AuthenticationHelper.GetClientByEmail(context, email);
-
-                //Check if the cliend is registered
-                //if (client == null)
                 if (!await AuthenticationHelper.CheckEmailExists(context, email))
                 {
                     return Results.BadRequest("Client not found");
                 }
 
+                var client = await AuthenticationHelper.GetClientByEmail(context, email);
 
-                //Check the password received with the password at client_crendential
-                //var clientCredential = await context.ClientCredentials
-                //    .Where(c => c.clientID == client.clientID && c.clientPassword == password)
-                //    .FirstOrDefaultAsync();
-                //bool isPasswordCorrect = await AuthenticationHelper.CheckPassword(context, client.clientID, password);
-
-                //if (!isPasswordCorrect)
+                // A wrong password decrements the client's remaining login attempts.
                 if (!await AuthenticationHelper.CheckPassword(context, client.clientID, password))
                 {
                     return Results.BadRequest("Incorrect Password");
                 }
 
-                //Check if the client is blocked
-                //if (clientCredential.remainingLoginAttempts == 0)
                 if (await AuthenticationHelper.CheckIfClientIsBlocked(context, client.clientID))
                 {
                     return Results.BadRequest("Client is Blocked");
                 }
 
-
-                //Update the last_login and remaining_login_attempts
+                // Successful login resets the attempt counter and records the timestamp.
                 await AuthenticationHelper.UpdateLastLogin(context, client.clientID);
 
-                //Return the client_id and client_name
                 var loginResponse = new
                 {
                     clientID = client.clientID,
@@ -69,24 +44,18 @@ namespace WebAPI.OpenFinance.Routes
                 };
 
                 return Results.Ok(loginResponse);
-
-
             });
 
-            //POST /Signup
-            //Will receive a JSON with the email, password, full name and address
-            //Will return a JSON with the clientID and Full Name
-            //Password will be stored at client_credential
-            route.MapPost("/signup", async (OpenFinanceContext context, Signup signup)
-                =>
+            // POST /authentication/signup
+            // Validates the input, creates the client and its (hashed) credential,
+            // and returns the new clientID and name.
+            route.MapPost("/signup", async (OpenFinanceContext context, Signup signup) =>
             {
-                //Get the email, password, full name and address from the JSON
                 var email = signup.Email;
                 var password = signup.Password;
                 var name = signup.Name;
                 var address = signup.Address;
 
-                //Input Validations using ValidationHelper
                 if (!ValidationHelper.IsValidEmail(email))
                 {
                     return Results.BadRequest("Invalid Email");
@@ -107,21 +76,14 @@ namespace WebAPI.OpenFinance.Routes
                     return Results.BadRequest("Invalid Address");
                 }
 
-                //Checkin if the email is in use. If has existingClient, the email is in use
-                //if (existingClient != null)
                 if (await AuthenticationHelper.CheckEmailExists(context, email))
                 {
                     return Results.BadRequest("Email already in use");
                 }
 
-                //Add the NEW client to the clients table after the validations
                 var newClientID = await AuthenticationHelper.RegisterClient(context, name, email, address);
-
-
-                //Add the client to the client_credential table
                 await AuthenticationHelper.RegisterClientCredential(context, newClientID, password);
 
-                //Return the client_id and client_name
                 var signupResponse = new
                 {
                     clientID = newClientID,
@@ -130,21 +92,17 @@ namespace WebAPI.OpenFinance.Routes
 
                 return Results.Ok(signupResponse);
             });
-
-
-
-
         }
     }
 
-    //Class to receive the JSON from Login
+    // Request body for POST /authentication/login.
     public class Login
     {
         public string Email { get; set; }
         public string Password { get; set; }
     }
 
-    //Class to receive the JSON from Signup
+    // Request body for POST /authentication/signup.
     public class Signup
     {
         public string Email { get; set; }

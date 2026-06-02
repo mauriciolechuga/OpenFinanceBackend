@@ -4,6 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Enables `dotnet user-secrets` so secrets (e.g. the DB connection string) stay out of source control. -->
+    <UserSecretsId>openfinance-webapi-secrets</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
