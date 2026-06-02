@@ -1,66 +1,59 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using WebAPI.OpenFinance.Data;
 using WebAPI.OpenFinance.Models;
 
 namespace WebAPI.OpenFinance.Helpers
 {
-    //Manage all the methods used to authenticate the client
+    // Authentication: lookup, password verification, registration, and login-attempt blocking.
     public static class AuthenticationHelper
     {
-        //Context to access the database
-        //private OpenFinanceContext _context;
+        // Hashes and verifies passwords using ASP.NET Core's PKBDF2-based hasher.
+        // Passwords are never stored or compared in plaintext.
+        private static readonly PasswordHasher<ClientCredentialModel> PasswordHasher = new();
 
-        //public AuthenticatorHelper(OpenFinanceContext context)
-        //{
-        //    _context = context;
-        //}
-
-        //Get the client with the email
         public static async Task<ClientsModel> GetClientByEmail(OpenFinanceContext context, string email)
         {
-            var client = await context.Clients
+            return await context.Clients
                 .Where(c => c.clientEmail == email)
                 .FirstOrDefaultAsync();
-
-            return client;
         }
 
-
-        //Check if the email exists in the database
         public static async Task<bool> CheckEmailExists(OpenFinanceContext context, string email)
         {
-            var client = await context.Clients
-                .Where(c => c.clientEmail == email)
-                .FirstOrDefaultAsync();
-
-            if (client == null)
-            {
-                return false;
-            }
-
-            return true;
+            return await context.Clients.AnyAsync(c => c.clientEmail == email);
         }
 
-        //Check if the password is correct
-        public static async Task<bool> CheckPassword(OpenFinanceContext context, int client, string password)
+        // Verifies the password against the stored hash. On failure, decrements the
+        // client's remaining login attempts (which may block the client).
+        public static async Task<bool> CheckPassword(OpenFinanceContext context, int clientID, string password)
         {
-            var credential = await context.ClientCredentials
-                .Where(c => c.clientID == client && c.clientPassword == password)
-                .FirstOrDefaultAsync();
+            var credential = await GetClientCredentialByClientID(context, clientID);
 
-            //Wrogn password
             if (credential == null)
             {
-                //Decrease the remainingLoginAttempts
-                await DecreaseRemainingLoginAttempts(context, client);
-
                 return false;
+            }
+
+            var result = PasswordHasher.VerifyHashedPassword(credential, credential.clientPassword, password);
+
+            if (result == PasswordVerificationResult.Failed)
+            {
+                await DecreaseRemainingLoginAttempts(context, clientID);
+                return false;
+            }
+
+            // Transparently upgrade legacy/weaker hashes to the current format on successful login.
+            if (result == PasswordVerificationResult.SuccessRehashNeeded)
+            {
+                credential.clientPassword = PasswordHasher.HashPassword(credential, password);
+                await context.SaveChangesAsync();
             }
 
             return true;
         }
 
-        //Register the new client and return the client_id
+        // Registers a new client and returns its generated ID.
         public static async Task<int> RegisterClient(OpenFinanceContext context, string clientName, string clientEmail, string clientAddress)
         {
             var newClient = new ClientsModel
@@ -76,50 +69,44 @@ namespace WebAPI.OpenFinance.Helpers
             return newClient.clientID;
         }
 
-        //Register the new client credential
+        // Stores the client's credential with the password hashed.
         public static async Task RegisterClientCredential(OpenFinanceContext context, int clientID, string clientPassword)
         {
             var newCredential = new ClientCredentialModel
             {
-                clientID = clientID,
-                clientPassword = clientPassword
+                clientID = clientID
             };
+            newCredential.clientPassword = PasswordHasher.HashPassword(newCredential, clientPassword);
 
             context.ClientCredentials.Add(newCredential);
             await context.SaveChangesAsync();
         }
 
-        //Get the clientCredential by the client_id
         public static async Task<ClientCredentialModel> GetClientCredentialByClientID(OpenFinanceContext context, int clientID)
         {
-            var clientCredential = await context.ClientCredentials
+            return await context.ClientCredentials
                 .Where(c => c.clientID == clientID)
                 .FirstOrDefaultAsync();
-
-            return clientCredential;
         }
 
-        //Update the last login of the client
+        // Records a successful login and resets the attempt counter.
         public static async Task UpdateLastLogin(OpenFinanceContext context, int clientID)
         {
             var clientCredential = await GetClientCredentialByClientID(context, clientID);
-            
-            clientCredential.lastLogin = DateTime.UtcNow;
 
+            clientCredential.lastLogin = DateTime.UtcNow;
             clientCredential.remainingLoginAttempts = 3;
 
             await context.SaveChangesAsync();
         }
 
-        //Decrease remainingLoginAttempts
+        // Decrements remaining attempts; blocks the client once they hit zero.
         public static async Task DecreaseRemainingLoginAttempts(OpenFinanceContext context, int clientID)
         {
             var clientCredential = await GetClientCredentialByClientID(context, clientID);
 
-            //Decrease the remainingLoginAttempts
             clientCredential.remainingLoginAttempts--;
 
-            //If the remainingLoginAttempts is 0, block the client
             if (clientCredential.remainingLoginAttempts <= 0)
             {
                 await BlockClient(context, clientID);
@@ -128,51 +115,40 @@ namespace WebAPI.OpenFinance.Helpers
             await context.SaveChangesAsync();
         }
 
-        //Check if the client is blocked
+        // True if the client is blocked and the block has not yet expired;
+        // otherwise lifts an expired block and returns false.
         public static async Task<bool> CheckIfClientIsBlocked(OpenFinanceContext context, int clientID)
         {
             var clientCredential = await GetClientCredentialByClientID(context, clientID);
 
-            if ((clientCredential.isBlocked) && clientCredential.blockedUntil > DateTime.UtcNow)
+            if (clientCredential.isBlocked && clientCredential.blockedUntil > DateTime.UtcNow)
             {
                 return true;
             }
 
-            //Unblock the client
             await UnblockClient(context, clientID);
-
             return false;
         }
 
-        //Block the client
+        // Blocks the client for 5 minutes.
         public static async Task BlockClient(OpenFinanceContext context, int clientID)
         {
             var clientCredential = await GetClientCredentialByClientID(context, clientID);
 
-            //Blocking
             clientCredential.isBlocked = true;
-
-            //Blocking for 5 minutes
             clientCredential.blockedUntil = DateTime.UtcNow.AddMinutes(5);
 
             await context.SaveChangesAsync();
         }
 
-        //Unblock the client
         public static async Task UnblockClient(OpenFinanceContext context, int clientID)
         {
             var clientCredential = await GetClientCredentialByClientID(context, clientID);
 
-            //Unblocking
             clientCredential.isBlocked = false;
-
-            //Removing the blockedUntil
             clientCredential.blockedUntil = null;
 
             await context.SaveChangesAsync();
         }
-
-
-
     }
 }

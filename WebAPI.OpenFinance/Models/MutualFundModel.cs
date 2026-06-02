@@ -7,18 +7,16 @@ namespace WebAPI.OpenFinance.Models
     public class MutualFundModel
     {
         /*
-         * Table: Fund
+         * Table: mutual_fund (reference data for a fund; per-client holdings live in mutual_fund_info)
          * mf_id (PK, int, not null)
          * product_id (FK, int, not null)
          * mf_name (varchar(100), not null)
          * mf_symbol (varchar(100), not null)
          * mf_type (varchar(100), not null)
          * mf_currency (varchar(100), not null)
-         * mf_price (decimal(10,2), not null)
-         * mf_nav (decimal(5,5))
-         * mf_quantity (int, not null)
-         * mf_inception_date (datetime, not null)
-         * mf_management_fee (decimal(5,5), not null)
+         * mf_last_nav (decimal, not null)
+         * mf_inception_date (date, not null)
+         * mf_management_fee (decimal, not null)
          * last_updated (datetime, not null)
          */
 

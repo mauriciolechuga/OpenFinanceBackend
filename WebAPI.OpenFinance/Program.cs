@@ -1,4 +1,3 @@
-
 using Microsoft.EntityFrameworkCore;
 using WebAPI.OpenFinance.Data;
 using WebAPI.OpenFinance.Routes;
@@ -11,30 +10,28 @@ namespace WebAPI.OpenFinance
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            //DB Connection
+            // The connection string is supplied via user-secrets (Development) or environment
+            // variables (other environments) — never committed to source control.
             builder.Services.AddDbContext<OpenFinanceContext>(options =>
             {
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DBOpenFinanceConnection"));
             });
 
-            // Add services to the container.
             builder.Services.AddAuthorization();
 
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+            // Swagger / OpenAPI: https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
 
-            //app.UseHttpsRedirection();
-
+            // Feature endpoints, each registered via its own extension method.
             app.BanksListRoutes();
             app.ClientRoutes();
             app.AuthenticationRoutes();
