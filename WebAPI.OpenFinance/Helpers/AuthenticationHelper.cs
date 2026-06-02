@@ -74,7 +74,11 @@ namespace WebAPI.OpenFinance.Helpers
         {
             var newCredential = new ClientCredentialModel
             {
-                clientID = clientID
+                clientID = clientID,
+                // Set explicitly so the value is correct regardless of provider (the DB default is
+                // not applied by every EF provider, e.g. the in-memory one used in tests).
+                remainingLoginAttempts = 3,
+                isBlocked = false
             };
             newCredential.clientPassword = PasswordHasher.HashPassword(newCredential, clientPassword);
 

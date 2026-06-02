@@ -6,7 +6,10 @@ The application reads its secrets (currently the database connection string) fro
 - **Local development:** `dotnet user-secrets` (enabled via `<UserSecretsId>` in the csproj).
 - **Production (AWS, later):** environment variables sourced from AWS Secrets Manager / SSM.
 
-Config key: `ConnectionStrings:DBOpenFinanceConnection`.
+Config keys:
+- `ConnectionStrings:DBOpenFinanceConnection` — database connection string.
+- `Jwt:Key` — JWT signing key (>= 32 chars). In Development the app falls back to a known dev-only
+  key if this is unset; outside Development it refuses to start without one.
 
 ---
 
@@ -17,6 +20,12 @@ After cloning, set the connection string so the app and EF migrations can reach 
 ```powershell
 cd "WebAPI.OpenFinance"
 dotnet user-secrets set "ConnectionStrings:DBOpenFinanceConnection" "Host=<host>;Database=DBOpenFinance;Username=<user>;Password=<password>;SSL Mode=Require;Trust Server Certificate=true"
+```
+
+Set a JWT signing key (any random string of 32+ characters):
+
+```powershell
+dotnet user-secrets set "Jwt:Key" "<a-long-random-development-signing-key>"
 ```
 
 Verify:

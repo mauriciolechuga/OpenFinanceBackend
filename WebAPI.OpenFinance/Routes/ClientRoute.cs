@@ -1,6 +1,6 @@
-using WebAPI.OpenFinance.Data;
-using WebAPI.OpenFinance.Helpers;
-using WebAPI.OpenFinance.Models;
+using System.Security.Claims;
+using WebAPI.OpenFinance.Auth;
+using WebAPI.OpenFinance.Services;
 
 namespace WebAPI.OpenFinance.Routes
 {
@@ -8,95 +8,52 @@ namespace WebAPI.OpenFinance.Routes
     {
         public static void ClientRoutes(this WebApplication app)
         {
-            var route = app.MapGroup("clients");
+            // All client endpoints require a valid JWT.
+            var route = app.MapGroup("clients").RequireAuthorization();
 
-            // GET /clients/{clientID}/PortfolioTotalAmount
-            // Returns the per-product totals, the overall total, the clientID, and a UTC timestamp.
-            route.MapGet("/{clientID}/PortfolioTotalAmount", async (OpenFinanceContext context, int clientID) =>
+            // GET /clients/{clientID}/PortfolioTotalAmount (legacy manual-entry products).
+            route.MapGet("/{clientID}/PortfolioTotalAmount", async (IPortfolioService portfolio, ClaimsPrincipal user, int clientID) =>
             {
-                if (!await ClientHelper.CheckClientExists(context, clientID))
+                var guard = AuthorizeClient(user, clientID);
+                if (guard is not null) return guard;
+
+                if (!await portfolio.HasConnectionsAsync(clientID))
                 {
-                    return Results.BadRequest("Client not found");
+                    return Results.BadRequest(new { error = "Client has no connections" });
                 }
 
-                if (!await ClientHelper.CheckClientConnections(context, clientID))
-                {
-                    return Results.BadRequest("Client has no connections");
-                }
-
-                var productTotals = new List<object>();
-                decimal totalAmount = 0;
-
-                // Cash is summed directly from cash_info; it is part of the overall total
-                // but is not currently itemized in the per-product breakdown.
-                var cashTotal = await ClientHelper.GetClientCashTotalAmount(context, clientID);
-                totalAmount += cashTotal;
-
-                var stockTotal = await ClientHelper.GetClienStockTotalAmount(context, clientID);
-                totalAmount += stockTotal;
-                productTotals.Add(new { product = "Stock", total = stockTotal });
-
-                var mutualFundTotal = await ClientHelper.GetClientMutualFundTotalAmount(context, clientID);
-                totalAmount += mutualFundTotal;
-                productTotals.Add(new { product = "Mutual Fund", total = mutualFundTotal });
-
-                var response = new
-                {
-                    clientID = clientID,
-                    totalAmount = totalAmount,
-                    productTotals = productTotals,
-                    // Always serialize timestamps in UTC, on both backend and frontend.
-                    timestamp = DateTime.UtcNow
-                };
-
-                return Results.Ok(response);
+                return Results.Ok(await portfolio.GetPortfolioTotalAsync(clientID));
             });
 
-            // GET /clients/{clientID}/AssetsSummary
-            // For each product: total value and its percentage of the portfolio.
-            // Returns the product count, overall total, per-product details, clientID, and a UTC timestamp.
-            route.MapGet("/{clientID}/AssetsSummary", async (OpenFinanceContext context, int clientID) =>
+            // GET /clients/{clientID}/AssetsSummary (legacy manual-entry products).
+            route.MapGet("/{clientID}/AssetsSummary", async (IPortfolioService portfolio, ClaimsPrincipal user, int clientID) =>
             {
-                if (!await ClientHelper.CheckClientExists(context, clientID))
+                var guard = AuthorizeClient(user, clientID);
+                if (guard is not null) return guard;
+
+                if (!await portfolio.HasConnectionsAsync(clientID))
                 {
-                    return Results.BadRequest("Client not found");
+                    return Results.BadRequest(new { error = "Client has no connections" });
                 }
 
-                if (!await ClientHelper.CheckClientConnections(context, clientID))
+                var summary = await portfolio.GetAssetsSummaryAsync(clientID);
+                if (summary.NumProducts == 0)
                 {
-                    return Results.BadRequest("Client has no connections");
+                    return Results.BadRequest(new { error = "Client has no products" });
                 }
 
-                var productDetail = new List<ProductDetails>();
-
-                var stockTotal = await ClientHelper.GetClienStockTotalAmount(context, clientID);
-                productDetail.Add(new ProductDetails { ProductName = "Stock", ProdTotal = stockTotal });
-
-                var mutualFundTotal = await ClientHelper.GetClientMutualFundTotalAmount(context, clientID);
-                productDetail.Add(new ProductDetails { ProductName = "Mutual Fund", ProdTotal = mutualFundTotal });
-
-                // Fills in PortfolioPercentage on each entry.
-                ClientHelper.CalculatePercentageForEachProduct(productDetail);
-
-                int numProducts = ClientHelper.GetNumProducts(productDetail);
-                decimal totalAmount = ClientHelper.CalculateTotalAmount(productDetail);
-
-                if (numProducts == 0)
-                {
-                    return Results.BadRequest("Client has no products");
-                }
-
-                var response = new
-                {
-                    clientID = clientID,
-                    numProducts = numProducts,
-                    totalAmount = totalAmount,
-                    productDetails = productDetail,
-                    timestamp = DateTime.UtcNow
-                };
-
-                return Results.Ok(response);
+                return Results.Ok(summary);
             });
+        }
+
+        // Ensures the authenticated client can only read their own data.
+        // Returns an error result to short-circuit, or null when access is allowed.
+        private static IResult? AuthorizeClient(ClaimsPrincipal user, int clientID)
+        {
+            var authenticatedId = user.GetClientId();
+            if (authenticatedId is null) return Results.Unauthorized();
+            if (authenticatedId != clientID) return Results.Forbid();
+            return null;
         }
     }
 }

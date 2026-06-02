@@ -92,7 +92,7 @@ aggregates into snapshots instead of recomputing totals on every request.
 
 ## 6. Phased roadmap
 
-### Phase 0 — Foundation & security hardening (in progress, $0)
+### Phase 0 — Foundation & security hardening ($0)
 Make the existing backend safe and maintainable before adding features.
 
 - [x] Architecture & plan documented (this file)
@@ -100,17 +100,19 @@ Make the existing backend safe and maintainable before adding features.
 - [x] **Password hashing** — replace plaintext storage/compare with built-in `PasswordHasher`
 - [x] **Secret hygiene** — move DB connection string out of `appsettings.json` to user-secrets/env
 - [ ] **Rotate the Neon DB password** (it is exposed in git history) — *owner action, see §7*
-- [ ] DI/service-layer refactor — static helpers → injected services behind interfaces
-- [ ] DTOs separate from EF entities; FluentValidation + ProblemDetails
-- [ ] JWT bearer auth + per-user authorization on every endpoint; enable HTTPS
-- [ ] xUnit test project + Testcontainers integration tests
-- [ ] GitHub Actions CI (build + test + migrations check)
+- [x] DI/service-layer refactor — injected `IAuthService` / `IPortfolioService` / `IAggregationService`
+- [x] DTOs separate from EF entities; FluentValidation + ProblemDetails
+- [x] JWT bearer auth + per-user authorization on every endpoint; enable HTTPS
+- [x] xUnit test project (in-memory provider; Testcontainers deferred — no Docker locally)
+- [x] GitHub Actions CI (build + test)
 
 ### Phase 1 — Aggregation MVP ($0 via MockProvider)
-- [ ] `IAggregationProvider` + `MockProvider` (sandbox data)
-- [ ] Target domain model + EF migrations
-- [ ] Link flow in the Flutter app; webhook endpoint; `IHostedService` sync
-- [ ] App shows net worth + accounts + holdings + transactions from the pipeline
+- [x] `IAggregationProvider` + `MockProvider` (deterministic sandbox data)
+- [x] Target domain model (Account/Security/Holding/Transaction/BalanceSnapshot) + EF migration
+- [x] Webhook endpoint + `IHostedService` periodic sync; idempotent reconciliation
+- [x] Backend read models: net worth + accounts + holdings + transactions
+- [ ] **Flutter link flow + JWT wiring** — lives in the separate frontend repo; tracked there
+- [ ] Swap a real provider (Flinks/Plaid + SnapTrade) behind `IAggregationProvider` when a key exists
 
 ### Phase 2 — Scale & polish (mostly $0)
 - [ ] BalanceSnapshot history + analysis/charts screens
@@ -132,6 +134,11 @@ Make the existing backend safe and maintainable before adding features.
    ```
    (User-secrets is enabled on the project; `appsettings.json` now ships an empty placeholder.)
 2. Decide AWS region (e.g. `ca-central-1` for Canadian data residency) before any deployment.
+3. **Set a real `Jwt:Key`** (>= 32 chars) via user-secrets in dev and environment/Secrets Manager in
+   prod. The app uses a dev-only fallback key in Development and refuses to start without one elsewhere.
+4. **Breaking API change:** all endpoints except `login`/`signup` and the webhook now require a JWT,
+   and the legacy `clients/{id}/...` routes enforce that `{id}` matches the token. The Flutter app must
+   store the token from login/signup and send `Authorization: Bearer <token>`.
 
 ## 8. Notes / known issues to revisit
 

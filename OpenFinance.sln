@@ -5,6 +5,8 @@ VisualStudioVersion = 17.12.35707.178 d17.12
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebAPI.OpenFinance", "WebAPI.OpenFinance\WebAPI.OpenFinance.csproj", "{19041CDF-90C7-4C09-9812-AFB04561225C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebAPI.OpenFinance.Tests", "WebAPI.OpenFinance.Tests\WebAPI.OpenFinance.Tests.csproj", "{871F6E4E-5933-4640-9741-5967F11B1B98}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{19041CDF-90C7-4C09-9812-AFB04561225C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{19041CDF-90C7-4C09-9812-AFB04561225C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{19041CDF-90C7-4C09-9812-AFB04561225C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{871F6E4E-5933-4640-9741-5967F11B1B98}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{871F6E4E-5933-4640-9741-5967F11B1B98}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{871F6E4E-5933-4640-9741-5967F11B1B98}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{871F6E4E-5933-4640-9741-5967F11B1B98}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
