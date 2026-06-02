@@ -1,5 +1,6 @@
-using WebAPI.OpenFinance.Data;
-using WebAPI.OpenFinance.Helpers;
+using FluentValidation;
+using WebAPI.OpenFinance.Dtos;
+using WebAPI.OpenFinance.Services;
 
 namespace WebAPI.OpenFinance.Routes
 {
@@ -9,105 +10,35 @@ namespace WebAPI.OpenFinance.Routes
         {
             var route = app.MapGroup("authentication");
 
-            // POST /authentication/login
-            // Accepts an email and password; returns the clientID and name on success.
-            route.MapPost("/login", async (OpenFinanceContext context, Login login) =>
+            // POST /authentication/login → returns clientId, name, and a JWT on success.
+            route.MapPost("/login", async (IAuthService auth, IValidator<LoginRequest> validator, LoginRequest request) =>
             {
-                var email = login.Email;
-                var password = login.Password;
-
-                if (!await AuthenticationHelper.CheckEmailExists(context, email))
+                var validation = await validator.ValidateAsync(request);
+                if (!validation.IsValid)
                 {
-                    return Results.BadRequest("Client not found");
+                    return Results.ValidationProblem(validation.ToDictionary());
                 }
 
-                var client = await AuthenticationHelper.GetClientByEmail(context, email);
+                var outcome = await auth.LoginAsync(request);
+                return outcome.Succeeded
+                    ? Results.Ok(outcome.Response)
+                    : Results.BadRequest(new { error = outcome.Error });
+            }).AllowAnonymous();
 
-                // A wrong password decrements the client's remaining login attempts.
-                if (!await AuthenticationHelper.CheckPassword(context, client.clientID, password))
-                {
-                    return Results.BadRequest("Incorrect Password");
-                }
-
-                if (await AuthenticationHelper.CheckIfClientIsBlocked(context, client.clientID))
-                {
-                    return Results.BadRequest("Client is Blocked");
-                }
-
-                // Successful login resets the attempt counter and records the timestamp.
-                await AuthenticationHelper.UpdateLastLogin(context, client.clientID);
-
-                var loginResponse = new
-                {
-                    clientID = client.clientID,
-                    clientName = client.clientName
-                };
-
-                return Results.Ok(loginResponse);
-            });
-
-            // POST /authentication/signup
-            // Validates the input, creates the client and its (hashed) credential,
-            // and returns the new clientID and name.
-            route.MapPost("/signup", async (OpenFinanceContext context, Signup signup) =>
+            // POST /authentication/signup → creates the client (hashed credential) and returns a JWT.
+            route.MapPost("/signup", async (IAuthService auth, IValidator<SignupRequest> validator, SignupRequest request) =>
             {
-                var email = signup.Email;
-                var password = signup.Password;
-                var name = signup.Name;
-                var address = signup.Address;
-
-                if (!ValidationHelper.IsValidEmail(email))
+                var validation = await validator.ValidateAsync(request);
+                if (!validation.IsValid)
                 {
-                    return Results.BadRequest("Invalid Email");
+                    return Results.ValidationProblem(validation.ToDictionary());
                 }
 
-                if (!ValidationHelper.IsValidPassword(password))
-                {
-                    return Results.BadRequest("Invalid Password");
-                }
-
-                if (!ValidationHelper.IsValidName(name))
-                {
-                    return Results.BadRequest("Invalid Name");
-                }
-
-                if (!ValidationHelper.IsValidAddress(address))
-                {
-                    return Results.BadRequest("Invalid Address");
-                }
-
-                if (await AuthenticationHelper.CheckEmailExists(context, email))
-                {
-                    return Results.BadRequest("Email already in use");
-                }
-
-                var newClientID = await AuthenticationHelper.RegisterClient(context, name, email, address);
-                await AuthenticationHelper.RegisterClientCredential(context, newClientID, password);
-
-                var signupResponse = new
-                {
-                    clientID = newClientID,
-                    clientName = name
-                };
-
-                return Results.Ok(signupResponse);
-            });
+                var outcome = await auth.SignupAsync(request);
+                return outcome.Succeeded
+                    ? Results.Ok(outcome.Response)
+                    : Results.BadRequest(new { error = outcome.Error });
+            }).AllowAnonymous();
         }
-    }
-
-    // Request body for POST /authentication/login.
-    public class Login
-    {
-        public string Email { get; set; }
-        public string Password { get; set; }
-    }
-
-    // Request body for POST /authentication/signup.
-    public class Signup
-    {
-        public string Email { get; set; }
-        public string Password { get; set; }
-        public string Name { get; set; }
-        public string Address { get; set; }
     }
 }
