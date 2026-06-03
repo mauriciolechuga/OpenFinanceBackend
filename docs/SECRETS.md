@@ -8,8 +8,10 @@ The application reads its secrets (currently the database connection string) fro
 
 Config keys:
 - `ConnectionStrings:DBOpenFinanceConnection` — database connection string.
-- `Jwt:Key` — JWT signing key (>= 32 chars). In Development the app falls back to a known dev-only
-  key if this is unset; outside Development it refuses to start without one.
+- `Jwt:Key` — JWT signing key. **Must be at least 32 bytes (256 bits).** For an ASCII/UTF-8 string
+  that means **32+ characters**; a shorter key throws `IDX10720: ... key size must be greater than
+  256 bits` at token-issuing time (login/signup return HTTP 500). In Development the app falls back to
+  a known dev-only key if this is unset; outside Development it refuses to start without one.
 
 ---
 
@@ -22,11 +24,16 @@ cd "WebAPI.OpenFinance"
 dotnet user-secrets set "ConnectionStrings:DBOpenFinanceConnection" "Host=<host>;Database=DBOpenFinance;Username=<user>;Password=<password>;SSL Mode=Require;Trust Server Certificate=true"
 ```
 
-Set a JWT signing key (any random string of 32+ characters):
+Set a JWT signing key. It **must be at least 32 characters** (256 bits) — anything shorter makes
+login/signup fail with HTTP 500 (`IDX10720`). Generate a long random one and store it:
 
 ```powershell
-dotnet user-secrets set "Jwt:Key" "<a-long-random-development-signing-key>"
+# PowerShell — 48 random bytes, base64-encoded (~64 chars)
+$key = [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Max 256 }))
+dotnet user-secrets set "Jwt:Key" $key
 ```
+
+(Or just pass any string of 32+ characters explicitly.)
 
 Verify:
 
