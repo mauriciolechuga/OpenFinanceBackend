@@ -99,7 +99,7 @@ Make the existing backend safe and maintainable before adding features.
 - [x] Translate/clean all source comments; remove dead commented-out code
 - [x] **Password hashing** — replace plaintext storage/compare with built-in `PasswordHasher`
 - [x] **Secret hygiene** — move DB connection string out of `appsettings.json` to user-secrets/env
-- [ ] **Rotate the Neon DB password** (it is exposed in git history) — *owner action, see §7*
+- [x] **Neon DB credential neutralized** — the original project was abandoned and replaced with a fresh Neon project (see `docs/SECRETS.md`), so the credential exposed in git history is now dead
 - [x] DI/service-layer refactor — injected `IAuthService` / `IPortfolioService` / `IAggregationService`
 - [x] DTOs separate from EF entities; FluentValidation + ProblemDetails
 - [x] JWT bearer auth + per-user authorization on every endpoint; enable HTTPS
@@ -124,25 +124,26 @@ Make the existing backend safe and maintainable before adding features.
 - [ ] `CanadianOpenBankingProvider`; migrate connections off aggregators where cheaper
 - [ ] Re-evaluate scope expansion (payments) only if market + licensing justify it
 
-## 7. Owner action items (cannot be automated safely)
+## 7. Owner action items
 
-1. **Rotate the Neon database password.** The current connection string (with credentials) was
-   committed in `appsettings.json` and remains in git history, so it must be considered
-   compromised. In the Neon console, reset the password, then store the new connection string via:
-   ```
-   dotnet user-secrets set "ConnectionStrings:DBOpenFinanceConnection" "<new-connection-string>"
-   ```
-   (User-secrets is enabled on the project; `appsettings.json` now ships an empty placeholder.)
-2. Decide AWS region (e.g. `ca-central-1` for Canadian data residency) before any deployment.
-3. **Set a real `Jwt:Key`** (>= 32 chars) via user-secrets in dev and environment/Secrets Manager in
-   prod. The app uses a dev-only fallback key in Development and refuses to start without one elsewhere.
-4. **Breaking API change:** all endpoints except `login`/`signup` and the webhook now require a JWT,
-   and the legacy `clients/{id}/...` routes enforce that `{id}` matches the token. The Flutter app must
-   store the token from login/signup and send `Authorization: Bearer <token>`.
+1. **Neon database — done.** The original project (whose credential was committed in `appsettings.json`
+   and remains in git history) was abandoned and replaced with a **fresh Neon project**; the new
+   connection string lives in user-secrets and the leaked credential is now dead. See `docs/SECRETS.md`
+   ("Creating a fresh Neon project"). *Remaining:* the new DB is US-hosted — move to a Canadian-resident
+   DB before real user data (item 2).
+2. **Decide AWS region / data residency** (e.g. `ca-central-1`) before any deployment or real user data.
+   *(Pending.)*
+3. **`Jwt:Key` — done in dev.** Set via user-secrets (must be **≥ 32 bytes / 32+ chars**, or login/signup
+   fail with HTTP 500 `IDX10720`). *Remaining:* set a production key via environment/Secrets Manager —
+   the app refuses to start without one outside Development.
+4. **Breaking API change (for the Flutter app, separate repo `mauriciolechuga/OpenFinance`):** all
+   endpoints except `login`/`signup` and the webhook require a JWT, and the legacy `clients/{id}/...`
+   routes enforce that `{id}` matches the token `sub`. The app must store the token from login/signup and
+   send `Authorization: Bearer <token>`. *(Pending — frontend wiring.)*
 
 ## 8. Notes / known issues to revisit
 
-- Login flow currently checks the password (and decrements attempts) *before* the blocked-status
-  check; tighten during the auth refactor.
+- ~~Login flow checks the password before the blocked-status check~~ — **fixed** in `AuthService`:
+  blocked-status is now checked before the password so a blocked client can't keep burning attempts.
 - Existing credential rows stored before password hashing will no longer verify — recreate test
-  users (or reset the dev database) after this change.
+  users (or reset the dev database) after this change. *(N/A on the fresh Neon DB, which starts empty.)*
