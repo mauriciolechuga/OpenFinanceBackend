@@ -111,8 +111,12 @@ Make the existing backend safe and maintainable before adding features.
 - [x] Target domain model (Account/Security/Holding/Transaction/BalanceSnapshot) + EF migration
 - [x] Webhook endpoint + `IHostedService` periodic sync; idempotent reconciliation
 - [x] Backend read models: net worth + accounts + holdings + transactions
-- [ ] **Flutter link flow + JWT wiring** — lives in the separate frontend repo; tracked there
+- [x] **Flutter link flow + JWT wiring** — done in the frontend repo (`mauriciolechuga/OpenFinance`,
+  branch `phase1/flutter-jwt-and-link-flow`): centralized `ApiClient` attaches `Authorization: Bearer`
+  and handles 401, login/signup store the JWT, link→exchange flow over `/connections/*`, and Dashboard/
+  Holdings/Activity screens read `/portfolio/*`. (JWT is in-memory only for now — see note below.)
 - [ ] Swap a real provider (Flinks/Plaid + SnapTrade) behind `IAggregationProvider` when a key exists
+  *(deferred: needs a paid sandbox key, against the $0 constraint)*
 
 ### Phase 2 — Scale & polish (mostly $0)
 - [ ] BalanceSnapshot history + analysis/charts screens
@@ -139,7 +143,8 @@ Make the existing backend safe and maintainable before adding features.
 4. **Breaking API change (for the Flutter app, separate repo `mauriciolechuga/OpenFinance`):** all
    endpoints except `login`/`signup` and the webhook require a JWT, and the legacy `clients/{id}/...`
    routes enforce that `{id}` matches the token `sub`. The app must store the token from login/signup and
-   send `Authorization: Bearer <token>`. *(Pending — frontend wiring.)*
+   send `Authorization: Bearer <token>`. *(Done — the Flutter app now stores the JWT and sends the
+   bearer header via a central `ApiClient`; branch `phase1/flutter-jwt-and-link-flow`.)*
 
 ## 8. Notes / known issues to revisit
 
@@ -147,3 +152,9 @@ Make the existing backend safe and maintainable before adding features.
   blocked-status is now checked before the password so a blocked client can't keep burning attempts.
 - Existing credential rows stored before password hashing will no longer verify — recreate test
   users (or reset the dev database) after this change. *(N/A on the fresh Neon DB, which starts empty.)*
+- **Frontend JWT is in-memory only** (lost on app restart → re-login). Persisting it needs a native
+  storage plugin (e.g. `flutter_secure_storage`), which on Windows requires enabling Developer Mode to
+  build. The session API is shaped so a persistent store can drop in without touching callers.
+- **Seeding dev data:** the aggregation DB is empty until a connection is linked (the MockProvider is
+  the data source). `scripts/seed-dev-data.ps1` logs in as a test account, ensures banks exist, and
+  calls `/connections/exchange` to populate accounts/holdings/transactions for local testing.
