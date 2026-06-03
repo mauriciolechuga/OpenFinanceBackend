@@ -52,9 +52,47 @@ dotnet user-secrets list
 
 ---
 
+## Creating a fresh Neon project (new database)
+
+Use this when you don't have access to the existing Neon project (or want a clean database). Unlike a
+rotation, the **host, username, and database name all change**, and the new database starts empty, so
+you must apply migrations. Abandoning the old project also makes any previously leaked credential moot.
+
+1. At **console.neon.tech**, click **New Project**. Pick a name, Postgres 16, and the closest region
+   (the free tier has no Canadian region — US East is fine for dev; Canadian residency is a
+   pre-production concern, see `docs/ARCHITECTURE.md` §7).
+2. Open **Connection Details / Connect** and copy the **pooled** connection string (host ends in
+   `-pooler`). Neon may show a `.NET` tab — note the `Host`, `Username` (usually `neondb_owner`),
+   `Password`, and `Database` (usually `neondb`).
+3. Store it as the local secret in the key/value Npgsql format (Neon's `.NET` string already uses this;
+   if you only have the `postgresql://...` URI, map its parts into the form below):
+
+   ```powershell
+   cd "WebAPI.OpenFinance"
+   dotnet user-secrets set "ConnectionStrings:DBOpenFinanceConnection" "Host=<host>;Database=<dbname>;Username=<user>;Password=<password>;SSL Mode=VerifyFull;Channel Binding=Require;"
+   ```
+
+   Neon's `.NET` string ships `SSL Mode=VerifyFull;Channel Binding=Require` — keep it. (`SSL Mode=Require;
+   Trust Server Certificate=true` also works.)
+4. Create the schema in the empty database:
+
+   ```powershell
+   $env:ASPNETCORE_ENVIRONMENT = "Development"
+   dotnet ef database update --project WebAPI.OpenFinance
+   ```
+5. Run and verify; the DB has no users yet, so sign up a fresh one via Swagger
+   (old plaintext credentials won't verify after the password-hashing change):
+
+   ```powershell
+   dotnet run --project WebAPI.OpenFinance   # http://localhost:5280/swagger
+   ```
+
+---
+
 ## Rotating the database password (Neon)
 
-Only the **password** changes — host, username, and database stay the same.
+Use this when you **do** have the original project and only need to invalidate a leaked password —
+the **password** changes while host, username, and database stay the same.
 
 1. Log in at **console.neon.tech** → open the **DBOpenFinance** project.
 2. Go to **Roles** (or **Dashboard → Connection Details**), select role **`neondb_owner`**, and click
