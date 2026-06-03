@@ -115,6 +115,8 @@ Make the existing backend safe and maintainable before adding features.
   branch `phase1/flutter-jwt-and-link-flow`): centralized `ApiClient` attaches `Authorization: Bearer`
   and handles 401, login/signup store the JWT, link→exchange flow over `/connections/*`, and Dashboard/
   Holdings/Activity screens read `/portfolio/*`. (JWT is in-memory only for now — see note below.)
+  **Verified end-to-end on an Android emulator (2026-06-03):** login → net worth/accounts/holdings/
+  transactions → bank link → idempotent re-sync → logout, all against the live API + MockProvider data.
 - [ ] Swap a real provider (Flinks/Plaid + SnapTrade) behind `IAggregationProvider` when a key exists
   *(deferred: needs a paid sandbox key, against the $0 constraint)*
 
