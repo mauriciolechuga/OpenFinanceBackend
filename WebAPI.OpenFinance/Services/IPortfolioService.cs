@@ -12,6 +12,7 @@ namespace WebAPI.OpenFinance.Services
 
         // Aggregation model (synced from providers).
         Task<NetWorthResponse> GetNetWorthAsync(int clientId);
+        Task<NetWorthHistoryResponse> GetNetWorthHistoryAsync(int clientId, int? days = null);
         Task<IReadOnlyList<AccountDto>> GetAccountsAsync(int clientId);
         Task<IReadOnlyList<HoldingDto>> GetHoldingsAsync(int clientId);
         Task<IReadOnlyList<TransactionDto>> GetTransactionsAsync(int clientId);

@@ -16,4 +16,13 @@ namespace WebAPI.OpenFinance.Dtos
         decimal TotalAmount,
         IReadOnlyList<ProductDetailDto> ProductDetails,
         DateTime Timestamp);
+
+    // One day's net-worth value in the history series.
+    public record NetWorthPointDto(DateTime Date, decimal NetWorth, string Currency);
+
+    // Net-worth-over-time series powering the analysis/charts screen.
+    public record NetWorthHistoryResponse(
+        int ClientId,
+        IReadOnlyList<NetWorthPointDto> Points,
+        DateTime Timestamp);
 }

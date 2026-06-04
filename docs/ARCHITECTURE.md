@@ -121,7 +121,10 @@ Make the existing backend safe and maintainable before adding features.
   *(deferred: needs a paid sandbox key, against the $0 constraint)*
 
 ### Phase 2 — Scale & polish (mostly $0)
-- [ ] BalanceSnapshot history + analysis/charts screens
+- [~] BalanceSnapshot history + analysis/charts screens — **backend done:** snapshots (already written
+  on every sync) are now exposed as a net-worth-over-time series via `GET /portfolio/networth/history`
+  (`PortfolioService.GetNetWorthHistoryAsync`; one point per day, optional `?days=N`). *Remaining:* the
+  analysis/charts screen is the frontend half, in the separate repo `mauriciolechuga/OpenFinance`.
 - [ ] Transaction categorization; aggregate caching
 - [ ] Observability; load testing
 - [ ] First real aggregator behind the interface (when budget allows a sandbox key)
