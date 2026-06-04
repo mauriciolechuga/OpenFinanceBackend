@@ -105,5 +105,43 @@ namespace WebAPI.OpenFinance.Tests
 
             Assert.Single(await service.GetTransactionsAsync(clientId));
         }
+
+        [Fact]
+        public async Task NetWorth_history_collapses_to_one_point_per_day_and_honours_days_filter()
+        {
+            var db = Guid.NewGuid().ToString();
+            int clientId;
+            await using (var ctx = TestSupport.NewContext(db))
+            {
+                clientId = await SeedAsync(ctx);
+
+                var today = DateTime.UtcNow.Date;
+                ctx.BalanceSnapshots.AddRange(
+                    Snapshot(clientId, today.AddDays(-2).AddHours(9), 1000m),
+                    // Two snapshots on the same day: the later one wins.
+                    Snapshot(clientId, today.AddDays(-1).AddHours(8), 1500m),
+                    Snapshot(clientId, today.AddDays(-1).AddHours(17), 1600m),
+                    Snapshot(clientId, today.AddHours(10), 2000m));
+                await ctx.SaveChangesAsync();
+            }
+
+            await using var read = TestSupport.NewContext(db);
+            var service = new PortfolioService(read);
+
+            var history = await service.GetNetWorthHistoryAsync(clientId);
+
+            // 4 rows over 3 calendar days collapse to 3 ascending points, same-day latest wins.
+            Assert.Equal(3, history.Points.Count);
+            Assert.Equal(new[] { 1000m, 1600m, 2000m }, history.Points.Select(p => p.NetWorth).ToArray());
+            Assert.True(history.Points[0].Date < history.Points[1].Date);
+            Assert.Equal("CAD", history.Points[0].Currency);
+
+            // days=2 keeps only yesterday and today.
+            var recent = await service.GetNetWorthHistoryAsync(clientId, days: 2);
+            Assert.Equal(new[] { 1600m, 2000m }, recent.Points.Select(p => p.NetWorth).ToArray());
+        }
+
+        private static BalanceSnapshotModel Snapshot(int clientId, DateTime date, decimal netWorth) =>
+            new() { ClientId = clientId, SnapshotDate = date, TotalNetWorth = netWorth, Currency = "CAD" };
     }
 }

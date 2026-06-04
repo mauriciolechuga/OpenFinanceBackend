@@ -74,6 +74,34 @@ namespace WebAPI.OpenFinance.Services
             return new NetWorthResponse(clientId, cashAndBalances + holdingsValue, DefaultCurrency, DateTime.UtcNow);
         }
 
+        public async Task<NetWorthHistoryResponse> GetNetWorthHistoryAsync(int clientId, int? days = null)
+        {
+            // A snapshot is written on every sync, so a day can hold several rows; collapse to one
+            // point per calendar day (the latest snapshot of that day) for a clean chart series.
+            var snapshots = await _context.BalanceSnapshots
+                .Where(s => s.ClientId == clientId)
+                .OrderBy(s => s.SnapshotDate)
+                .ToListAsync();
+
+            var points = snapshots
+                .GroupBy(s => s.SnapshotDate.Date)
+                .Select(g =>
+                {
+                    var latest = g.OrderBy(s => s.SnapshotDate).Last();
+                    return new NetWorthPointDto(g.Key, latest.TotalNetWorth, latest.Currency);
+                })
+                .OrderBy(p => p.Date)
+                .ToList();
+
+            if (days is > 0)
+            {
+                var cutoff = DateTime.UtcNow.Date.AddDays(-(days.Value - 1));
+                points = points.Where(p => p.Date >= cutoff).ToList();
+            }
+
+            return new NetWorthHistoryResponse(clientId, points, DateTime.UtcNow);
+        }
+
         public async Task<IReadOnlyList<AccountDto>> GetAccountsAsync(int clientId)
         {
             var connectionIds = await ConnectionIdsAsync(clientId);

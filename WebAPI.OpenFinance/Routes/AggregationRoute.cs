@@ -58,6 +58,10 @@ namespace WebAPI.OpenFinance.Routes
             route.MapGet("/networth", async (IPortfolioService portfolio, ClaimsPrincipal user) =>
                 await WithClient(user, id => portfolio.GetNetWorthAsync(id)));
 
+            // Net-worth-over-time series; optional ?days=N limits to the last N days.
+            route.MapGet("/networth/history", async (IPortfolioService portfolio, ClaimsPrincipal user, int? days) =>
+                await WithClient(user, id => portfolio.GetNetWorthHistoryAsync(id, days)));
+
             route.MapGet("/accounts", async (IPortfolioService portfolio, ClaimsPrincipal user) =>
                 await WithClient(user, id => portfolio.GetAccountsAsync(id)));
 
